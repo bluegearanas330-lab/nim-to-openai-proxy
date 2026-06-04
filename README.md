@@ -42,6 +42,7 @@ Node.js 18+, a NVAPI/Nim API key, a deployment platform (though if you follow th
 | `google-lightest` | `google/gemma-2-2b-it` | Testing only | Extremely fast | Low |
 | `m2.7` | `minimaxai/minimax-m2.7` | Experimental | Medium | Unknown (to me) |
 | `step-3.5-flash` | `stepfun-ai/step-3.5-flash` | Chinese creative model | Fast | Medium |
+| `step-3.7-flash` | `stepfun-ai/step-3.7-flash` | Chinese creative model | Fast | Medium |
 
 ### Filter Guide
 
