@@ -324,7 +324,6 @@ function buildThinkingRequest(baseRequest, modelId, enableThinking) {
       if (enableThinking) {
         // DeepSeek V4, Kimi K2.6, GLM-5, MiniMax, Step — need chat_template_kwargs at ROOT
         // NIM strictly requires this or the API hangs indefinitely
-        chatTemplateKwargs.enable_thinking = true;
         chatTemplateKwargs.thinking = true;
         
         // DeepSeek V4 specifically supports configurable reasoning effort
