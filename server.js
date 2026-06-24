@@ -449,6 +449,9 @@ app.post('/v1/chat/completions', async (req, res) => {
       let reasoningOpen = false;
       let doneSent = false;
       let cleanedUp = false;
+      let reasoningBuffer = '';
+      let hasReasoning = false;
+      
 
       const cleanup = () => {
         if (cleanedUp) return;
@@ -459,11 +462,26 @@ app.post('/v1/chat/completions', async (req, res) => {
         req.removeAllListeners('close');
       };
 
-      const processLine = (line) => {
+            const processLine = (line) => {
         if (!line.startsWith('data: ')) return;
 
         if (line.includes('[DONE]')) {
           if (!doneSent) {
+            // Flush any pending reasoning before [DONE]
+            if (reasoningBuffer && SHOW_REASONING) {
+              const flushData = {
+                id: `chatcmpl-${Date.now()}`,
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: model,
+                choices: [{
+                  index: 0,
+                  delta: { content: `\n</thinking>\n\n` },
+                  finish_reason: null
+                }]
+              };
+              safeWrite(res, `data: ${JSON.stringify(flushData)}\n\n`);
+            }
             safeWrite(res, 'data: [DONE]\n\n');
             doneSent = true;
           }
@@ -477,24 +495,28 @@ app.post('/v1/chat/completions', async (req, res) => {
 
           if (delta) {
             const { content: extractedContent, reasoning, isPromoted } = extractThinkingContent(delta);
-            let content = extractedContent;
-
-            if (SHOW_REASONING && reasoning && !isPromoted) {
-              if (reasoning && !reasoningOpen) {
-                content = `<thinking>\n${reasoning.replace(/\n/g, '\\n')}`;
-                reasoningOpen = true;
-              } else if (reasoning) {
-                content = reasoning.replace(/\n/g, '\\n');
-              }
-
-              if (delta.content && reasoningOpen) {
-                content += `\n</thinking>\n\n${delta.content}`;
-                reasoningOpen = false;
-              }
+            
+            // If we have reasoning, buffer it
+            if (reasoning) {
+              hasReasoning = true;
+              reasoningBuffer += reasoning;
+              return; // Don't emit yet, wait for content
             }
-
-            delta.content = content;
+            
+            // If we have content and were buffering reasoning, flush reasoning first
+            if (hasReasoning && SHOW_REASONING && extractedContent) {
+              const combinedContent = `<thinking>\n${reasoningBuffer.replace(/\n/g, '\\n')}\n</thinking>\n\n${extractedContent}`;
+              delta.content = combinedContent;
+              reasoningBuffer = '';
+              hasReasoning = false;
+            } else if (extractedContent) {
+              delta.content = extractedContent;
+            } else {
+              delta.content = '';
+            }
+            
             delete delta.reasoning_content;
+            delete delta.reasoning;
           }
 
           safeWrite(res, `data: ${JSON.stringify(data)}\n\n`);
@@ -510,7 +532,7 @@ app.post('/v1/chat/completions', async (req, res) => {
           })}\n\n`);
         }
       };
-
+      
       upstreamStream.on('data', chunk => {
         buffer += decoder.write(chunk);
 
